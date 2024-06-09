@@ -1,0 +1,990 @@
+!Vortex dynamics in ferromagnetic superconductors:
+!Vortex clusters, domain walls, and
+!enhanced viscosity
+program task11
+
+implicit none 
+    
+    !Все вихри одного знака взял
+    real ( kind = 8 ) bi0
+    real ( kind = 8 ) bi1
+    real ( kind = 8 ) bk0
+    real ( kind = 8 ) bk1
+    
+    real ( kind = 8 ) di0
+    real ( kind = 8 ) di1
+    real ( kind = 8 ) dk0
+    real ( kind = 8 ) dk1
+    real(kind = 8), parameter :: k1 = 1.38 * 10.0**(-23)
+    real(kind = 8), parameter :: e =  2.71828182845904
+    real(kind = 8), parameter :: phi0 =  2.06783460999999E-07            !Квант магнитного потока
+    real(kind = 8):: delta = 0.27       !Толщина слоя
+    real(kind = 8) :: xi0, xi          !Длина когерентности сверхпроводника
+    real(kind = 8), parameter :: lambda0 = 180.0         !Лондоновская глубина проникновения данного материала при Т=0 
+    real(kind = 8) :: lambda             !Лондоновская глубина проникновения данного материала при данной температуре
+    real(kind = 8) :: T, Tc
+    real(kind = 8) :: length, width
+    integer :: N = 1, i, j, k, i4, i1, iter, a, b, nomera(-200:200), i2
+    real(kind = 8) :: temp, temp1, randd, step
+    real(kind = 8) :: Ui, Uj, U0, Ujone, Ujj, Unewone, dE, dE1, Uh !Энергии взаимодействия вихрей
+    real(kind = 8) :: poschange, angle, xchange, ychange !на сколько изменится положение вихря
+    real(kind = 8) :: possib1 !Вероятность перехода
+    real(kind = 8) :: rij !Расстояние между вихрями
+    real(kind = 8) :: x, x1, x2, y1, y2, ydiff, xdiff !Координаты вихрей
+    real(kind = 8):: r1(10000, 2)!, rmed(1000000,2), countmed
+    real(kind = 8) :: pi
+    real(kind = 8) :: epss  ! Собственная энергия всех вихрей
+    real(kind = 8):: Utab(10000), sectora(-200:200,-200:200), coordnew(2), r3(2,2)
+    real(kind = 8) :: number1, tabul, tauNa, H  !будем каждый раз выбирать вихрь по его номеру в массиве
+    integer :: number, N1, maxvort=10000, isect, i5
+    real(kind = 8) :: process, ver
+    real(kind = 8) :: hi0, sh0, Urep, Uattr, d, Lambda_
+    real(kind=8) :: bj0, dj0, bj1, dj1, by0, dy0, by1, dy1, Utabpy(10000)
+    tauNa = 100.0
+    T = 10.0
+    xi0 = 2.0
+    sectora = 0.0
+
+    Tc = 84.0
+    tabul = 10000.0
+
+    
+
+    length = 2.0*1000.0 ! по х
+    width = 2.0*1000.0   !по у
+
+    
+    iter = 200000
+    H = 400.0
+    hi0 = 1.0
+    ver = 0.4
+    xi = xi0 * (1.0 - (T / Tc) ** 3.3) ** (-1.0 / 2.0)
+    write(*,*) xi 
+    lambda = lambda0 * (1.0 - (T / Tc) ** (3.3)) ** (-1.0 / 2.0)
+    lambda = lambda / (1+4*pi*hi0)**0.5
+    d = 100.0 * lambda
+    Lambda_ = 2.0*lambda/tanh(d/lambda)
+    !open(12, file = 'tabmass.txt')
+    
+    delta = 100*lambda
+    
+    !open(4, file = "task1energy.txt")
+    
+
+    write(*,*) lambda
+    pi = acos(-1.0)
+    !call random_number(r1) 
+    T= T / 11606.0 ! T в эВ
+    !r1 = (r1 * width - width / 2.0)
+    !считаем собственные энергии вихрей
+    
+    epss = (phi0 / (4 * pi * lambda * 10 ** (-7.0))) ** 2 * (log(lambda / xi) + 0.52)  * delta * 10 ** (-7.0) *6.2 * 10.0**(11)
+    write(*,*) epss
+    Uh = (-1.0) * phi0 * H * delta * 10**(-7.0)/ (4.0 * pi) * 6.2 * 10 ** (11.0)
+    write(*,*) Uh 
+    
+    !Табулирование
+
+    step = 7.0 * lambda / tabul
+    ! do i = 1, floor(tabul)
+    !     x = step * i 
+    !     ! call besssel(x/lambda,bi0, di0, bi1, di1, bk0, dk0, bk1, dk1)
+    !     ! Uattr = d*bk1* hi0 * phi0**2 * x/(4.0*pi*(1.0+4.0*pi*hi0)*lambda**3)
+    !     ! call stvh0(x/Lambda_, sh0)
+    !     ! write(12, *) x/Lambda_, sh0
+    !     ! call jy01a ( x/Lambda_, bj0, dj0, bj1, dj1, by0, dy0, by1, dy1 )
+    !     ! temp = phi0**2*(sh0-by0)/(8.0*pi*Lambda_)
+    !     ! Urep = phi0**2*d/(8*pi**2*lambda**2)*bk0 + temp
+    !     ! Utab(i) = Urep - Uattr
+        
+    !     !temp = (phi0**2.0 / (8.0 * pi**2.0 * (lambda * 10 ** (-7.0))**2.0)) * delta * 10**(-7.0)
+    !     !Utab(i) = temp * bk0
+    !     !temp = (phi0**2.0 / (16.0 * pi**2.0 * (lambda * 10 ** (-7.0))))
+    !     !temp = (phi0**2.0 / (16.0 * pi**2.0 * (lambda * 10 ** (-7.0))**2.0)) * delta * 10**(-7.0)
+    !     !Utab(i) = temp * bk0
+    !     !Utab(i) = temp * ((log(x/(x+lambda))+2.22*exp(-x/lambda))) * (-1) *0.03
+    !     Utab(i) = Utab(i) * 6.2 * 10.0 **(11.0)
+    !     !write(12, *) i, Utab(i)
+    ! end do
+    ! write(*,*) Uattr, Urep 
+    ! close(12)
+    open(77, file='tabmaspy_info6.txt')
+    read(77, *) Utabpy
+    close(77)
+    Utab= Utabpy
+    ! open(33, file='curve_info6.txt')
+    ! write(*,*) Utab(3700:3900)
+    Uj = 0.0
+    !countmed = 1
+    ! H=0.0
+    ! do i5 = 1, 20
+    ! write(*,*) 'Iteration number ', i5, N
+    ! H = H + 50.0
+    ! Uh = (-1.0) * phi0 * H * delta * 10**(-7.0)/ (4.0 * pi) * 6.2 * 10 ** (11.0)
+    do i = 1, iter
+        if(N>maxvort) then
+        go to 44
+        end if
+        if(N> 30 .and. N< maxvort-1) then
+            N1 = N
+        else
+            N1 = 30
+        end if
+            do i1 = 1, N1
+                
+                call random_number(process)
+                if(process < 0.4) then
+                    call movement(Uj, r1, N, lambda, T, Utab, length, width, epss, Uh, tabul)
+                else if(process < 0.7) then
+                    call creation(Uj, r1, N, lambda, tauNa, T, width, length, Utab, epss,Uh)
+                    
+                else
+                    call annihilation(Uj, r1, N, lambda, tauNa, T, Utab, width, length, epss, Uh)
+                end if
+            end do 
+        
+        !вывод жнергии каждые 10 итераций
+         if (mod(i,1000)==0) then
+            write(*,*) i, 'Uj=', Uj, 'N=', N
+         end if
+            if((mod(i,100)==0) .and. i>iter-20001) then
+               isect = isect + 1
+               call vortexcount(sectora,r1, N, length, width)
+            end if
+!            !if (mod(i,10)==0 .and. i>15000) then
+!            !    write(77,*) rmed
+!            !end if
+        !запись энергии в файл
+        !    write(4,*) i, Uj
+        
+    end do
+    ! write(33,*) H, H - N * phi0 / (length * width * 10.0 ** (-14.0))
+    ! end do
+    ! close(33)
+    !write(*,*) sectora
+
+44    Ujj = 0.0
+    !write(*,*) N
+    do j = 1, N-1     !Считаем
+        do k = 1, N-1    !энергию начальной конфигурации
+            if( j .NE. k) then
+                !Координаты двух вихрей, в массиве r1 100 строк и два стлбца- 100 вихрей и у каждого 2 координаты
+                x1 = r1(j, 1)
+                x2 = r1(k, 1)
+                y1 = r1(j, 2)
+                y2 = r1(k, 2)
+                !Вычисляем расстояние по х и по у
+                ydiff = min(abs(y1-y2), abs(width-max(y1,y2) + min(y1,y2)))
+                xdiff = min(abs(x1-x2), abs(length-max(x1,x2) + min(x1,x2)))
+                rij = sqrt(ydiff**2.0 + xdiff**2.0)
+                !write(*,*) rij
+                !Находим энергию из табулированного массива
+                if(rij < 7.0 * lambda) then 
+                    i4 = ceiling(rij*tabul/(7.0*lambda)) 
+            
+                    temp = Utab(i4)
+                    Ujj = Ujj + temp / 2.0
+                
+                end if
+            end if
+        end do
+    end do
+    
+    write(*,*) Ujj +(N-1) * (Uh +epss)
+    !write(*,*) r1(1:11,:)
+    open(2,file = "k0h0y0k1_info6.txt")
+    do i = 1, N-1
+        write(2, *) r1(i, :)
+    end do
+    close(2)
+
+    open(5, file="densitymap_data_info6.txt")
+    
+    do i = -200, 200
+        write(5, *) sectora(i, :)
+    end do
+    close(5)
+
+    open(3,file = "info6.txt")
+    write(3, *) 'd=', d
+    write(3, *) 'Ujj+(N-1)*(Uh+epss)=', Ujj+(N-1)*(Uh+epss)
+    write(3, *) 'H=', H
+    write(3, *) 'T=', T
+    write(3, *) 'hi0=', hi0
+    write(3, *) 'iter=', iter
+    write(3, *) 'N=', N
+    close(3)
+
+    
+    
+    
+    !close(4)
+    !plot 'C:/Users/Valera P. Lenkov/Desktop/Fortran/task1/res2.txt'
+
+
+
+
+
+
+
+
+
+
+
+    contains
+
+        !****************
+        !Движение
+        !***************
+subroutine movement(Uj, r1, N, lambda, T, Utab, length, width, epss, Uh, tabul)
+real(kind=8) :: Uj, r1(10000, 2), lambda, T, Utab(10000), length, width, epss, Uh,tabul
+integer :: N, number, j, i4
+real(kind=8) :: dE, number1, coordnew(2), randd, poschange, temp, xchange, ychange, angle, pi
+real(kind=8) :: x1, x2, y1, y2, rij, xdiff, ydiff, possib1
+dE = 0.0
+pi = acos(-1.0)
+call random_number(number1)  !Выбираем
+!случайный вихрь
+number = nint(number1 * (N-2))+1            
+!Меняем координаты вихря, используя полярные координаты
+coordnew(1) = r1(number, 1)
+coordnew(2) = r1(number, 2)
+call random_number(randd)
+poschange = randd * lambda / 10.0
+call random_number(randd)
+angle = 2 * pi * randd
+xchange = poschange * cos(angle)
+ychange = poschange * sin(angle)
+!записали в массив старые значения положения вихрей
+!Меняем координату х выбранного случайного вихря
+if(coordnew(1) + xchange < -length / 2.0) then
+    temp = coordnew(1) + xchange + length
+    coordnew(1) = temp
+else if (coordnew(1) + xchange > length / 2.0) then
+    temp = coordnew(1) + xchange - length
+    coordnew(1) = temp
+                    else 
+                        temp = coordnew(1) + xchange
+                        coordnew(1) = temp
+                    end if
+                    !Меняем координату y выбранного случайного вихря
+                    if(coordnew(2) + ychange < -width / 2.0) then
+                        temp = coordnew(2) + ychange + width
+                        coordnew(2) = temp
+                    else if (coordnew(2) + ychange > width / 2.0) then
+                        temp = coordnew(2) + ychange - width
+                        coordnew(2) = temp
+                    else 
+                        temp = coordnew(2) + ychange
+                        coordnew(2) = temp
+                    end if
+                    !Считаем энергию переставленного вихря
+                    do j = 1, N-1       !
+                        if( j.NE. number ) then
+                            x1 = r1(j, 1)
+                            x2 = coordnew(1)
+                            y1 = r1(j, 2)
+                            y2 = coordnew(2)
+                            ydiff = min(abs(y1-y2), width - abs(y1 - y2))
+                            xdiff = min(abs(x1-x2), length - abs(x1 - x2))  
+                            rij = sqrt(ydiff**2 + xdiff**2)
+                            !Приводим к нужной размерности
+                            !Считаем энергию с помощью табулированного массива
+                            if(rij < 7.0 * lambda) then 
+                                i4 = ceiling(rij*tabul/(7.0*lambda)) 
+                                dE = dE + Utab(i4)
+                            end if
+                        end if
+                    end do
+                    do j = 1, N-1       
+                        if( j.NE. number ) then
+                            x1 = r1(number, 1)
+                            x2 = r1(j, 1)
+                            y1 = r1(number, 2)
+                            y2 = r1(j, 2)
+                            ydiff = min(abs(y1-y2), width - abs(y1 - y2))
+                            xdiff = min(abs(x1-x2), length - abs(x1 - x2))  
+                            rij = sqrt(ydiff**2 + xdiff**2)
+                            !приводим к нужной размерности 
+                            !вычисляем энергию при помощи табулированного массива
+                            if(rij < 7.0 * lambda) then 
+                                i4 = ceiling(rij*tabul/(7.0*lambda)) 
+                                dE = dE - Utab(i4)
+                            end if
+                        end if
+                    end do
+
+                    if (dE<0) then
+                        r1(number, 1) = coordnew(1)
+                        r1(number, 2) = coordnew(2)
+                        Uj = Uj + dE
+                
+                    else
+                        possib1 = 1.0 / e ** ( dE / T)
+                        call random_number(randd)
+                        if(possib1>randd) then
+                            r1(number, 1) = coordnew(1)
+                            r1(number, 2) = coordnew(2)
+                            Uj = Uj + dE
+                        end if
+                    end if
+                !if((i > iter - 11)) then
+                !    do i2 = 1, N
+                !        a = ceiling(r1(i2,1) / 2.5 * 200.0)
+                !        b = ceiling(r1(i2,2) / 2.5 * 200.0)
+                
+                !        sectora(a,b) = sectora(a, b) + 1
+                !    end do
+                !end if   
+end subroutine
+
+    !***************************
+    !ЗАПИСЬ ДЛЯ СРЕДНЕЙ КАРТИНКИ
+    !***************************
+    subroutine vortexcount(sectora, r1, N, length, width)
+    real(kind=8):: sectora(-200:200, -200:200), r1(10000, 2), pricel,pricew
+    real(kind=8):: length, width
+    integer::i, N, cagesl, cagesw, xvort, yvort
+    cagesw = size(sectora(:, 1))
+    
+    cagesl = size(sectora(1,:))
+    !Длина- кол-во столбцов
+    pricel = length / cagesl
+    pricew = width / cagesw
+    
+    do i=1, N-1
+    xvort = ceiling(r1(i, 1)/pricel)
+    yvort = ceiling(r1(i, 2)/pricew)
+    sectora(xvort, yvort) = sectora(xvort, yvort) + 1
+    end do
+    end subroutine
+
+
+    !****************************
+    !РОЖДЕНИЕ
+    !****************************
+    subroutine creation(Uj, r1, N, lambda, tauNa, T, width, length, Utab, epss, Uh)
+    real(kind=8) :: pc, Wc, dE, Ly, r1(10000,2), tauNa, width, length, Utab(10000), Uj, lambda, T, epss, Uh!Что такое Ly? Ширина по у
+    integer :: j, N !lfn - последнее свободное место в массиве вихрей
+    real(kind=8) :: ycr, xch, randomm, coordcreate(2), temp1, temp2
+    call random_number(xch) 
+    !Выбираем право или лево
+    !xch = xch * 2 *  lambda - lambda
+    !if (xch < 0) then
+    !    coordcreate(1) = length / 2.0  + xch
+    !else 
+    !    coordcreate(1) = -length / 2.0 + xch
+    !end if
+    !call random_number(xch)
+    xch = xch * length - length / 2.0
+    coordcreate(1) = xch
+    call random_number(ycr)
+    ycr = ycr * width - width / 2.0
+    coordcreate(2) = ycr
+    !write(*,*) coordcreate
+    !pc = 1.0 / (lambda * Ly)
+    !write(*,*) Uh, epss
+    dE = Uh+epss
+    !write(*,*) dE, N
+    do j = 1, N-1       !Новая энергия системы
+                    x1 = r1(j, 1)
+                    x2 = coordcreate(1)
+                    y1 = r1(j, 2)
+                    y2 = coordcreate(2)
+                    ydiff = min(abs(y1-y2), width - abs(y1 - y2))
+                    xdiff = min(abs(x1-x2), length - abs(x1 - x2))  
+                    rij = sqrt(ydiff**2 + xdiff**2)
+                    !Приводим к нужной размерности
+                    !Считаем энергию с помощью табулированного массива
+
+                    if(rij < 7.0 * lambda) then 
+                        i4 = ceiling(rij*tabul/(7.0*lambda)) 
+                        dE = dE + Utab(i4)
+                    end if
+    end do
+    !write(*,*) dE
+    Wc = tauNa / (N-1.0 + 1.0) * exp((-1.0)*(1.0 / T) * dE)
+    call random_number(randomm)
+    if (N<9999) then
+        if (Wc > randomm) then
+            r1(N, 2) = coordcreate(2)
+            r1(N, 1) = coordcreate(1)
+            N = N + 1
+            !write(*,*) N
+            Uj = Uj + dE
+        end if
+    end if
+end subroutine
+
+
+!***********************
+!УНИЧТОЖЕНИЕ
+!***********************
+
+subroutine annihilation(Uj, r1, N, lambda, tauNa, T, Utab, width, length, epss, Uh)
+    !А зачем зона уничтожения, если выбираем произвольный вихрь из массива?
+    real(kind=8) :: pa, Wa, dE, Uj, r1(10000, 2), lambda, tauNa, Utab(10000), width, length, T, epss, Uh
+    real(kind=8) :: x1, x2, rij, y1, ydiff, xdiff
+    real(kind=8) :: random_anihil, coordanihil(2)
+    integer :: number, j, N
+    call random_number(random_anihil)
+    number = nint(random_anihil * (N-2))+1
+    coordanihil = r1(number, :)
+    dE = 0.0+epss+ Uh
+    do j = 1, N-1       
+        if( j.NE. number ) then
+                x1 = r1(j, 1)
+                x2 = coordanihil(1)
+                y1 = r1(j, 2)
+                y2 = coordanihil(2)
+                ydiff = min(abs(y1-y2), width - abs(y1 - y2))
+                xdiff = min(abs(x1-x2), length - abs(x1 - x2))  
+                rij = sqrt(ydiff**2 + xdiff**2)
+                !Приводим к нужной размерности
+                !Считаем энергию с помощью табулированного массива
+            if(rij < 7.0 * lambda) then 
+                i4 = ceiling(rij*tabul/(7.0*lambda)) 
+                dE = dE + Utab(i4)
+            end if
+        end if
+    end do
+
+    !pa = 1.0 / (2.0 * N)
+    
+    Wa = (N-1) / tauNa * exp(-(1.0 / T) * (-dE))
+    call random_number(random_anihil)
+    if (Wa > random_anihil) then
+        r1(number, :) = r1(N-1, :)
+        r1(N-1, :) = 0
+        Uj = Uj - dE
+        N = N-1
+    end if
+end subroutine
+subroutine stvh0 ( x, sh0 )
+
+! c*********************************************************************72
+! c
+! cc STVH0 computes the Struve function H0(x).
+! c
+! c  Licensing:
+! c
+! c    This routine is copyrighted by Shanjie Zhang and Jianming Jin.  However, 
+! c    they give permission to incorporate this routine into a user program 
+! c    provided that the copyright is acknowledged.
+! c
+! c  Modified:
+! c
+! c    22 July 2012
+! c
+! c  Author:
+! c
+! c    Shanjie Zhang, Jianming Jin
+! c
+! c  Reference:
+! c
+! c    Shanjie Zhang, Jianming Jin,
+! c    Computation of Special Functions,
+! c    Wiley, 1996,
+! c    ISBN: 0-471-11963-6,
+! c    LC: QA351.C45.
+! c
+! c  Parameters:
+! c
+! c    Input, double precision X, the argument.
+! c
+! c    Output, double precision SH0, the value of H0(x).
+! c
+      implicit none
+
+      double precision a0
+      double precision by0
+      integer k
+      integer km
+      double precision p0
+      double precision pi
+      double precision q0
+      double precision r
+      double precision s
+      double precision sh0
+      double precision t
+      double precision t2
+      double precision ta0
+      double precision x
+
+      pi = 3.141592653589793D+00
+      s = 1.0D+00
+      r = 1.0D+00
+
+      if ( x .le. 20.0D+00 ) then
+        a0 = 2.0D+00 * x / pi
+        do k = 1, 60
+          r = - r * x / ( 2.0D+00 * k + 1.0D+00 ) * x &
+     &      / ( 2.0D+00 * k + 1.0D+00 )
+          s = s + r
+          if ( abs ( r ) .lt. abs ( s ) * 1.0D-12 ) then
+            go to 107
+          end if
+        end do
+
+107     continue
+
+        sh0 = a0 * s
+
+      else
+
+        if ( x .lt. 50.0D+00 ) then
+          km = int ( 0.5D+00 * ( x + 1.0D+00 ) )
+        else
+          km = 25
+        end if
+
+        do k = 1, km
+          r = - r * ( ( 2.0D+00 * k - 1.0D+00 ) / x ) ** 2
+          s = s + r
+          if ( abs ( r ) .lt. abs ( s ) * 1.0D-12 ) then
+            go to 207
+          end if
+        end do
+
+207      continue
+
+        t = 4.0D+00 / x
+        t2 = t * t
+
+        p0 = (((( &
+     &    - 0.37043D-05     * t2 &
+     &    + 0.173565D-04 )  * t2 &
+     &    - 0.487613D-04 )  * t2 &
+     &    + 0.17343D-03 )   * t2 &
+     &    - 0.1753062D-02 ) * t2 &
+     &    + 0.3989422793D+00
+
+        q0 = t * ((((( &
+     &      0.32312D-05     * t2 &
+     &    - 0.142078D-04 )  * t2 &
+     &    + 0.342468D-04 )  * t2 &
+     &    - 0.869791D-04 )  * t2 &
+     &    + 0.4564324D-03 ) * t2 &
+     &    - 0.0124669441D+00 )
+
+        ta0 = x - 0.25D+00 * pi
+        by0 = 2.0D+00 / sqrt ( x ) &
+     &    * ( p0 * sin ( ta0 ) + q0 * cos ( ta0 ) )
+        sh0 = 2.0D+00 / ( pi * x ) * s + by0
+
+      end if
+
+      return
+      end subroutine
+subroutine besssel ( x, bi0, di0, bi1, di1, bk0, dk0, bk1, dk1 )
+        
+    !*****************************************************************************80
+    !
+    !! IK01A compute Bessel function I0(x), I1(x), K0(x), and K1(x).
+    !
+    !  Discussion:
+    !
+    !    This procedure computes modified Bessel functions I0(x), I1(x),
+    !    K0(x) and K1(x), and their derivatives.
+    !
+    !  Licensing:
+    !
+    !    This routine is copyrighted by Shanjie Zhang and Jianming Jin.  However, 
+    !    they give permission to incorporate this routine into a user program 
+    !    provided that the copyright is acknowledged.
+    !
+    !  Modified:
+    !
+    !    16 July 2012
+    !
+    !  Author:
+    !
+    !    Shanjie Zhang, Jianming Jin
+    !
+    !  Reference:
+    !
+    !    Shanjie Zhang, Jianming Jin,
+    !    Computation of Special Functions,
+    !    Wiley, 1996,
+    !    ISBN: 0-471-11963-6,
+    !    LC: QA351.C45.
+    !
+    !  Parameters:
+    !
+    !    Input, real ( kind = 8 ) X, the argument.
+    !
+    !    Output, real ( kind = 8 ) BI0, DI0, BI1, DI1, BK0, DK0, BK1, DK1, the
+    !    values of I0(x), I0'(x), I1(x), I1'(x), K0(x), K0'(x), K1(x), K1'(x).
+    !
+    
+      real ( kind = 8 ), save, dimension ( 12 ) :: a = (/ &
+        0.125D+00, 7.03125D-02, &
+        7.32421875D-02, 1.1215209960938D-01, &
+        2.2710800170898D-01, 5.7250142097473D-01, &
+        1.7277275025845D+00, 6.0740420012735D+00, &
+        2.4380529699556D+01, 1.1001714026925D+02, &
+        5.5133589612202D+02, 3.0380905109224D+03 /)
+      real ( kind = 8 ), save, dimension ( 8 ) :: a1 = (/ &
+        0.125D+00, 0.2109375D+00, &
+        1.0986328125D+00, 1.1775970458984D+01, &
+        2.1461706161499D+02, 5.9511522710323D+03, &
+        2.3347645606175D+05, 1.2312234987631D+07 /)
+      real ( kind = 8 ), save, dimension ( 12 ) :: b = (/ &
+        -0.375D+00, -1.171875D-01, &
+        -1.025390625D-01, -1.4419555664063D-01, &
+        -2.7757644653320D-01, -6.7659258842468D-01, &
+        -1.9935317337513D+00, -6.8839142681099D+00, &
+        -2.7248827311269D+01, -1.2159789187654D+02, &
+        -6.0384407670507D+02, -3.3022722944809D+03 /)
+      real ( kind = 8 ) bi0
+      real ( kind = 8 ) bi1
+      real ( kind = 8 ) bk0
+      real ( kind = 8 ) bk1
+      real ( kind = 8 ) ca
+      real ( kind = 8 ) cb
+      real ( kind = 8 ) ct
+      real ( kind = 8 ) di0
+      real ( kind = 8 ) di1
+      real ( kind = 8 ) dk0
+      real ( kind = 8 ) dk1
+      real ( kind = 8 ) el
+      integer ( kind = 4 ) k
+      integer ( kind = 4 ) k0
+      real ( kind = 8 ) pi
+      real ( kind = 8 ) r
+      real ( kind = 8 ) w0
+      real ( kind = 8 ) ww
+      real ( kind = 8 ) x
+      real ( kind = 8 ) x2
+      real ( kind = 8 ) xr
+      real ( kind = 8 ) xr2
+       pi = 3.141592653589793D+00
+        el = 0.5772156649015329D+00
+        x2 = x * x
+    
+        if ( x == 0.0D+00 ) then
+    
+            bi0 = 1.0D+00
+            bi1 = 0.0D+00
+            bk0 = 1.0D+300
+            bk1 = 1.0D+300
+            di0 = 0.0D+00
+            di1 = 0.5D+00
+            dk0 = -1.0D+300
+            dk1 = -1.0D+300
+            return
+    
+           else if ( x <= 18.0D+00 ) then
+    
+            bi0 = 1.0D+00
+            r = 1.0D+00
+            do k = 1, 50
+              r = 0.25D+00 * r * x2 / ( k * k )
+            bi0 = bi0 + r
+            if ( abs ( r / bi0 ) < 1.0D-15 ) then
+                exit
+            end if
+            end do
+    
+            bi1 = 1.0D+00
+            r = 1.0D+00
+            do k = 1, 50
+                r = 0.25D+00 * r * x2 / ( k * ( k + 1 ) )
+                bi1 = bi1 + r
+                if ( abs ( r / bi1 ) < 1.0D-15 ) then
+                    exit
+                end if
+            end do
+    
+        bi1 = 0.5D+00 * x * bi1
+    
+      else
+    
+        if ( x < 35.0D+00 ) then
+          k0 = 12
+        else if ( x < 50.0D+00 ) then
+          k0 = 9
+        else
+          k0 = 7
+        end if
+    
+        ca = exp ( x ) / sqrt ( 2.0D+00 * pi * x )
+        bi0 = 1.0D+00
+        xr = 1.0D+00 / x
+        do k = 1, k0
+          bi0 = bi0 + a(k) * xr ** k
+        end do
+        bi0 = ca * bi0
+        bi1 = 1.0D+00
+        do k = 1, k0
+          bi1 = bi1 + b(k) * xr ** k
+        end do
+        bi1 = ca * bi1
+    
+      end if
+    
+      if ( x <= 9.0D+00 ) then
+    
+        ct = - ( log ( x / 2.0D+00 ) + el )
+        bk0 = 0.0D+00
+        w0 = 0.0D+00
+        r = 1.0D+00
+        do k = 1, 50
+          w0 = w0 + 1.0D+00 / k
+          r = 0.25D+00 * r / ( k * k ) * x2
+          bk0 = bk0 + r * ( w0 + ct )
+          if ( abs ( ( bk0 - ww ) / bk0 ) < 1.0D-15 ) then
+            exit
+          end if
+          ww = bk0
+        end do
+    
+        bk0 = bk0 + ct
+    
+      else
+    
+        cb = 0.5D+00 / x
+        xr2 = 1.0D+00 / x2
+        bk0 = 1.0D+00
+        do k = 1, 8
+          bk0 = bk0 + a1(k) * xr2 ** k
+        end do
+        bk0 = cb * bk0 / bi0
+    
+      end if
+    
+      bk1 = ( 1.0D+00 / x - bi1 * bk0 ) / bi0
+      di0 = bi1
+      di1 = bi0 - bi1 / x
+      dk0 = - bk1
+      dk1 = - bk0 - bk1 / x
+    
+      return
+    end subroutine
+
+
+
+    subroutine jy01a ( x, bj0, dj0, bj1, dj1, by0, dy0, by1, dy1 )
+
+! c*********************************************************************72
+! c
+! cc JY01A computes Bessel functions J0(x), J1(x), Y0(x), Y1(x) and derivatives.
+! c
+! c  Licensing:
+! c
+! c    This routine is copyrighted by Shanjie Zhang and Jianming Jin.  However, 
+! c    they give permission to incorporate this routine into a user program 
+! c    provided that the copyright is acknowledged.
+! c
+! c  Modified:
+! c
+! c    01 August 2012
+! c
+! c  Author:
+! c
+! c    Shanjie Zhang, Jianming Jin
+! c
+! c  Reference:
+! c
+! c    Shanjie Zhang, Jianming Jin,
+! c    Computation of Special Functions,
+! c    Wiley, 1996,
+! c    ISBN: 0-471-11963-6,
+! c    LC: QA351.C45.
+! c
+! c  Parameters:
+! c
+! c    Input, double precision X, the argument.
+! c
+! c    Output, double precision BJ0, DJ0, BJ1, DJ1, BY0, DY0, BY1, DY1,
+! c    the values of J0(x), J0'(x), J1(x), J1'(x), Y0(x), Y0'(x), Y1(x), Y1'(x).
+! c
+      implicit none
+
+      double precision a(12)
+      double precision b(12)
+      double precision a1(12)
+      double precision b1(12)
+      double precision bj0
+      double precision bj1
+      double precision by0
+      double precision by1
+      double precision cs0
+      double precision cs1
+      double precision cu
+      double precision dj0
+      double precision dj1
+      double precision dy0
+      double precision dy1
+      double precision ec
+      integer k
+      integer k0
+      double precision p0
+      double precision p1
+      double precision pi
+      double precision q0
+      double precision q1
+      double precision r
+      double precision r0
+      double precision r1
+      double precision rp2
+      double precision t1
+      double precision t2
+      double precision w0
+      double precision w1
+      double precision x
+      double precision x2
+
+      save a
+      save a1
+      save b
+      save b1
+
+      data a     /-0.7031250000000000D-01, 0.1121520996093750D+00, &
+     &            -0.5725014209747314D+00, 0.6074042001273483D+01, &
+     &            -0.1100171402692467D+03, 0.3038090510922384D+04, &
+     &            -0.1188384262567832D+06, 0.6252951493434797D+07, &
+     &            -0.4259392165047669D+09, 0.3646840080706556D+11, &
+     &            -0.3833534661393944D+13, 0.4854014686852901D+15/ 
+
+      data a1     /0.1171875000000000D+00, -0.1441955566406250D+00, &
+     &             0.6765925884246826D+00, -0.6883914268109947D+01, &
+     &             0.1215978918765359D+03, -0.3302272294480852D+04, &
+     &             0.1276412726461746D+06, -0.6656367718817688D+07, &
+     &             0.4502786003050393D+09, -0.3833857520742790D+11, &
+     &             0.4011838599133198D+13, -0.5060568503314727D+15/ 
+
+      data b     / 0.7324218750000000D-01, -0.2271080017089844D+00, &
+     &             0.1727727502584457D+01, -0.2438052969955606D+02, &
+     &             0.5513358961220206D+03, -0.1825775547429318D+05, &
+     &             0.8328593040162893D+06, -0.5006958953198893D+08, &
+     &             0.3836255180230433D+10, -0.3649010818849833D+12, &
+     &             0.4218971570284096D+14, -0.5827244631566907D+16/
+
+      data b1     /-0.1025390625000000D+00, 0.2775764465332031D+00, &
+     &             -0.1993531733751297D+01, 0.2724882731126854D+02, &
+     &             -0.6038440767050702D+03, 0.1971837591223663D+05, &
+     &             -0.8902978767070678D+06, 0.5310411010968522D+08, &
+     &             -0.4043620325107754D+10, 0.3827011346598605D+12, &
+     &             -0.4406481417852278D+14, 0.6065091351222699D+16/ 
+
+      pi = 3.141592653589793D+00
+      rp2 = 0.63661977236758D+00
+      x2 = x * x
+
+      if ( x .eq. 0.0D+00 ) then
+        bj0 = 1.0D+00
+        bj1 = 0.0D+00
+        dj0 = 0.0D+00
+        dj1 = 0.5D+00
+        by0 = -1.0D+300
+        by1 = -1.0D+300
+        dy0 = 1.0D+300
+        dy1 = 1.0D+300
+        return
+      end if
+
+      if ( x .le. 12.0D+00 ) then
+
+        bj0 = 1.0D+00
+        r = 1.0D+00
+        do k = 1,30
+          r = -0.25D+00 * r * x2 / ( k * k )
+          bj0 = bj0 + r
+          if ( abs ( r ) .lt. abs ( bj0 ) * 1.0D-15 ) then
+            go to 108
+          end if
+        end do
+
+108      continue
+
+        bj1 = 1.0D+00
+        r = 1.0D+00
+        do k = 1, 30
+          r = -0.25D+00 * r * x2 / ( k * ( k + 1.0D+00 ) )
+          bj1 = bj1 + r
+          if ( abs ( r ) .lt. abs ( bj1 ) * 1.0D-15 ) then
+            go to 208
+          end if
+        end do
+
+208      continue
+
+        bj1 = 0.5D+00 * x * bj1
+        ec = log ( x / 2.0D+00 ) + 0.5772156649015329D+00
+        cs0 = 0.0D+00
+        w0 = 0.0D+00
+        r0 = 1.0D+00
+        do k = 1, 30
+          w0 = w0 + 1.0D+00 / k
+          r0 = -0.25D+00 * r0 / ( k * k ) * x2
+          r = r0 * w0
+          cs0 = cs0 + r
+          if ( abs ( r ) .lt. abs ( cs0 ) * 1.0D-15 ) then
+            go to 308
+          end if
+        end do
+
+308      continue
+
+        by0 = rp2 * ( ec * bj0 - cs0 )
+        cs1 = 1.0D+00
+        w1 = 0.0D+00
+        r1 = 1.0D+00
+        do k = 1, 30
+          w1 = w1 + 1.0D+00 / k
+          r1 = -0.25D+00 * r1 / ( k * ( k + 1 ) ) * x2
+          r = r1 * ( 2.0D+00 * w1 + 1.0D+00 / ( k + 1.0D+00 ) )
+          cs1 = cs1 + r
+          if ( abs ( r ) .lt. abs ( cs1 ) * 1.0D-15 ) then
+            go to 408
+          end if
+        end do
+
+408      continue
+
+        by1 = rp2 * ( ec * bj1 - 1.0D+00 / x - 0.25D+00 * x * cs1 )
+
+      else
+
+        if ( x .lt. 35.0D+00 ) then
+          k0 = 12
+        else if ( x .lt. 50.0D+00 ) then
+          k0 = 10
+        else
+          k0 = 8
+        end if
+
+        t1 = x - 0.25D+00 * pi
+        p0 = 1.0D+00
+        q0 = -0.125D+00 / x
+        do k = 1, k0
+          p0 = p0 + a(k) * x ** ( - 2 * k )
+          q0 = q0 + b(k) * x ** ( - 2 * k - 1 )
+        end do
+        cu = dsqrt ( rp2 / x )
+        bj0 = cu * ( p0 * cos ( t1 ) - q0 * sin ( t1 ) )
+        by0 = cu * ( p0 * sin ( t1 ) + q0 * cos ( t1 ) )
+        t2 = x - 0.75D+00 * pi
+        p1 = 1.0D+00
+        q1 = 0.375D+00 / x
+        do k = 1, k0
+          p1 = p1 + a1(k) * x ** ( - 2 * k )
+          q1 = q1 + b1(k) * x ** ( - 2 * k - 1 )
+        end do
+        cu = dsqrt ( rp2 / x )
+        bj1 = cu * ( p1 * cos ( t2 ) - q1 * sin ( t2 ) )
+        by1 = cu * ( p1 * sin ( t2 ) + q1 * cos ( t2 ) )
+
+      end if
+
+      dj0 = - bj1
+      dj1 = bj0 - bj1 / x
+      dy0 = - by1
+      dy1 = by0 - by1 / x
+
+      return
+      end subroutine
+end program
+
+
